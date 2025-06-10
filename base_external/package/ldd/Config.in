@@ -1,0 +1,7 @@
+
+config BR2_PACKAGE_LDD
+	bool "ldd"
+	help
+	  Includes misc-modules and scull ldd kernel modules. 
+	  Based on fork of ldd3 (Linux Device Drivers 3 examples).
+	  Used to understand buildroot external trees and package builds.

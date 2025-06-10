@@ -1,0 +1,88 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides LDD3 kernel modules: misc-modules/hello, misc-modules/faulty, and scull
+# Description: Init script for loading and unloading these three modules. Uses modprobe
+#              utility, which can resolve modules by name rather than explicit .ko path.
+### END INIT INFO
+
+
+# Assert root user
+if [ "$(id -u)" != "0" ]; then
+  echo "You must be root to load/unload kernel modules"
+  exit 1
+fi
+
+# Group: distributions vary, look for staff or use wheel
+group="staff"
+grep -q '^staff:' /etc/group || group="wheel"
+
+start() {
+	# Load hello module (allocates 0 dev nodes)
+	/sbin/modprobe hello || exit 1
+
+	########################################
+
+	# Load faulty module (allocates 1 dev node)
+	/sbin/modprobe faulty || exit 1
+
+	# Install dev node
+	rm -f /dev/faulty
+	major=$(awk "\$2==\"faulty\" {print \$1}" /proc/devices)
+	mknod /dev/faulty c $major 0
+	chgrp $group /dev/faulty
+	chmod 644 /dev/faulty
+
+	########################################
+
+	# Load scull module (allocates 4 dev nodes, 1 link)
+	/sbin/modprobe scull || exit 1
+
+	# Install dev nodes
+	rm -f /dev/scull[0-3]
+	major=$(awk "\$2==\"scull\" {print \$1}" /proc/devices)
+	mknod /dev/scull0 c $major 0
+	mknod /dev/scull1 c $major 1
+	mknod /dev/scull2 c $major 2
+	mknod /dev/scull3 c $major 3
+	ln -sf scull0 /dev/scull
+	chgrp $group /dev/scull[0-3] 
+	chmod 644 /dev/scull[0-3]
+}
+
+stop() {
+	# Unload scull module
+	/sbin/rmmod scull || exit 1
+	rm -f /dev/scull[0-3] 
+	rm -f /dev/scull 
+
+	# Unload faulty module
+	/sbin/rmmod faulty || exit 1
+	rm -f /dev/faulty
+
+	# Unload hello module
+	/sbin/rmmod hello || exit 1
+}
+
+restart() {
+	stop
+	start
+}
+
+
+case "$1" in
+  start)
+  	start
+	;;
+  stop)
+  	stop
+	;;
+  restart|reload)
+  	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
