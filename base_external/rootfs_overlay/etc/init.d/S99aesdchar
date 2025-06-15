@@ -1,0 +1,71 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides aesd-char-driver/aesdchar kernel module 
+# Description: Init script for loading and unloading using modprobe
+## END INIT INFO
+
+
+# Assert root user
+if [ "$(id -u)" != "0" ]; then
+  echo "You must be root to load/unload kernel modules"
+  exit 1
+fi
+
+# Group: distributions vary, look for staff or use wheel
+group="staff"
+grep -q '^staff:' /etc/group || group="wheel"
+
+start() {
+	# Load aesdchar module (allocates 1 dev nodes)
+	/sbin/modprobe aesdchar 
+	if [ $? -eq 0 ]; then
+		echo "Starting aesdchar: OK"
+	else
+		echo "Starting aesdchar: FAIL"
+		exit 1
+	fi
+
+	# Install dev node
+	rm -f /dev/aesdchar
+	major=$(awk "\$2==\"aesdchar\" {print \$1}" /proc/devices)
+	mknod /dev/aesdchar c $major 0
+	chgrp $group /dev/aesdchar
+	chmod 666 /dev/aesdchar
+}
+
+stop() {
+	# Unload aesdchar module
+	/sbin/rmmod aesdchar
+	if [ $? -eq 0 ]; then
+		echo "Stopping aesdchar: OK"
+        else
+		echo "Stopping aesdchar: FAIL"
+		exit 1
+	fi
+
+	rm -f /dev/aesdchar
+}
+
+restart() {
+	stop
+	start
+}
+
+
+case "$1" in
+  start)
+  	start
+	;;
+  stop)
+  	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
